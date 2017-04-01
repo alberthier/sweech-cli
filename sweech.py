@@ -156,6 +156,13 @@ def rm(baseurl, path):
         raise RuntimeError("Unable to delete '{}'".format(path))
 
 
+def cat(baseurl, path):
+    try:
+        return _urlopen(baseurl + '/api/fs' + quote(path))
+    except HTTPError as err:
+        raise RuntimeError("Unable to read '{}'".format(path))
+
+
 def pull(baseurl, path, destination, log = None):
     _pull_recursive(baseurl, path, destination, log)
     
@@ -192,6 +199,17 @@ def _ls(baseurl, paths):
             print(_ls_item_to_str(item))
 
 
+def _cat(baseurl, paths):
+    for path in paths:
+        r = cat(baseurl, path)
+        buffer_size = 64 * 1024
+        while True:
+            buffer = r.read(buffer_size)
+            os.write(1, buffer)
+            if len(buffer) != buffer_size:
+                break
+
+
 def _pull(baseurl, paths, destination):
     for path in paths:
         pull(baseurl, path, destination, print)
@@ -221,6 +239,8 @@ if __name__ == '__main__':
             mkdir(testurl, sys.argv[2])
         elif sys.argv[1] == 'rm':
             rm(testurl, sys.argv[2])
+        elif sys.argv[1] == 'cat':
+            _cat(testurl, sys.argv[2:])
         sys.exit(0)
     except OSError as err:
         sys.stderr.write(str(err) + '\n')
