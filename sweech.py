@@ -141,6 +141,15 @@ def mkdir(baseurl, path):
         raise RuntimeError("Unable to create '{}'".format(path))
 
 
+def rm(baseurl, path):
+    try:
+        basedir, item = os.path.split(path)
+        postdata = codecs.encode(json.dumps({ 'baseDir': basedir, 'items': [ item ] }), 'utf-8')
+        urlopen(baseurl + '/api/fileops/delete', postdata).read()
+    except HTTPError as err:
+        raise RuntimeError("Unable to delete '{}'".format(path))
+
+
 def pull(baseurl, path, destination, log = None):
     _pull_recursive(baseurl, path, destination, log)
     
@@ -204,6 +213,8 @@ if __name__ == '__main__':
             _push(testurl, sys.argv[2:-1], sys.argv[-1])
         elif sys.argv[1] == 'mkdir':
             mkdir(testurl, sys.argv[2])
+        elif sys.argv[1] == 'rm':
+            rm(testurl, sys.argv[2])
         sys.exit(0)
     except OSError as err:
         sys.stderr.write(str(err) + '\n')
