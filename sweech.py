@@ -5,6 +5,7 @@ from __future__ import print_function
 import codecs
 import json
 import os.path
+import ssl
 import sys
 
 if sys.version > '3':
@@ -17,8 +18,13 @@ else:
 # == Internal helper functions ================================================
 
 
+def _urlopen(*args, **kwargs):
+    kwargs['context'] = ssl.SSLContext(ssl.PROTOCOL_TLS)
+    return urlopen(*args, **kwargs)
+
+
 def _fetch_json(url, postdata = None):
-    response = urlopen(url, postdata)
+    response = _urlopen(url, postdata)
     content_type = response.info()['Content-Type']
     if content_type == 'application/json':
         content = response.read().decode('utf-8')
@@ -71,7 +77,7 @@ def _pull_recursive(baseurl, path, destination, log = None, base_path = None):
             for item in response['content']:
                 _pull_recursive(baseurl, path + '/' + item['name'], destination, log, base_path)
         else:
-            response = urlopen(baseurl + '/api/fs' + quote(path))
+            response = _urlopen(baseurl + '/api/fs' + quote(path))
             if log is not None:
                 log(localpath)
             with open(os.path.join(destination, localpath), 'wb') as f:
@@ -92,7 +98,7 @@ def _push_recursive(baseurl, path, destination, log = None, base_path = None):
             with open(localpath, 'rb') as f:
                 url = baseurl + '/api/fs' + quote(remotepath)
                 log(remotepath)
-                urlopen(Request(url, data = f, headers = { 'Content-Length': size })).read()
+                _urlopen(Request(url, data = f, headers = { 'Content-Length': size })).read()
 
     try:
         path = os.path.abspath(path)
@@ -136,7 +142,7 @@ def ls(baseurl, path):
 def mkdir(baseurl, path):
     try:
         postdata = codecs.encode(json.dumps({ 'dir': path }), 'utf-8')
-        urlopen(baseurl + '/api/fileops/mkdir', postdata).read()
+        _urlopen(baseurl + '/api/fileops/mkdir', postdata).read()
     except HTTPError as err:
         raise RuntimeError("Unable to create '{}'".format(path))
 
@@ -145,7 +151,7 @@ def rm(baseurl, path):
     try:
         basedir, item = os.path.split(path)
         postdata = codecs.encode(json.dumps({ 'baseDir': basedir, 'items': [ item ] }), 'utf-8')
-        urlopen(baseurl + '/api/fileops/delete', postdata).read()
+        _urlopen(baseurl + '/api/fileops/delete', postdata).read()
     except HTTPError as err:
         raise RuntimeError("Unable to delete '{}'".format(path))
 
@@ -200,7 +206,7 @@ def _push(baseurl, paths, destination):
 
 
 if __name__ == '__main__':
-    testurl = 'http://192.168.0.77:4444'
+    testurl = 'https://192.168.0.77:4443'
     status = 1
     try:
         if sys.argv[1] == 'info':
