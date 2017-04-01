@@ -134,7 +134,7 @@ def ls(baseurl, path):
         if 'content' in response:
             return response['content']
         else:
-            return response
+            return [ response ]
     except HTTPError as err:
         raise RuntimeError("Unable to access to '{}'".format(path))
 
