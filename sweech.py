@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 
+import argparse
 import codecs
 import json
 import os.path
@@ -276,27 +277,53 @@ def _push(base_url, user, password, paths, destination):
 
 
 if __name__ == '__main__':
+    main_parser = argparse.ArgumentParser(description = 'Sweech command line')
+    main_parser.add_argument('-u', '--url', help = 'URL displayed in the Sweech app')
+    main_parser.add_argument('--user', help = 'Username if a password has been set')
+    main_parser.add_argument('--password', help = 'Password if a password has been set')
 
-    testurl = 'http://192.168.0.77:4444'
-    user = ''
-    password = ''
+    subparsers = main_parser.add_subparsers(dest = 'command', title='Available commands', metavar = 'command')
+    
+    subparsers.add_parser('info', help = 'Get info on the device')
+    
+    subparser = subparsers.add_parser('ls', help = 'List the content of a folder or display details of a file')
+    subparser.add_argument('paths', nargs = '+', help = 'Paths to list')
+
+    subparser = subparsers.add_parser('pull', help = 'Pull files and folder from the remote device to a local folder')
+    subparser.add_argument('paths', nargs = '+', help = 'Remote paths to pull')
+    subparser.add_argument('destination', help = 'Local destination path')
+
+    subparser = subparsers.add_parser('push', help = 'Push local files and folders to a remote folder')
+    subparser.add_argument('paths', nargs = '+', help = 'Local paths to push')
+    subparser.add_argument('destination', help = 'Remote destination path')
+
+    subparser = subparsers.add_parser('mkdir', help = 'Create remote folders')
+    subparser.add_argument('paths', nargs = '+', help = 'Folders to create')
+
+    subparser = subparsers.add_parser('rm', help = 'Delete remote files and folders')
+    subparser.add_argument('paths', nargs = '+', help = 'Files and folders to delete')
+
+    subparser = subparsers.add_parser('cat', help = 'Displays the content of files')
+    subparser.add_argument('paths', nargs = '+', help = 'Files to display')
+
+    args = main_parser.parse_args()
 
     status = 1
     try:
-        if sys.argv[1] == 'info':
-            _info(testurl, user, password)
-        elif sys.argv[1] == 'ls':
-            _ls(testurl, user, password, sys.argv[2:])
-        elif sys.argv[1] == 'pull':
-            _pull(testurl, user, password, sys.argv[2:-1], sys.argv[-1])
-        elif sys.argv[1] == 'push':
-            _push(testurl, user, password, sys.argv[2:-1], sys.argv[-1])
-        elif sys.argv[1] == 'mkdir':
-            _mkdir(testurl, user, password, sys.argv[2:])
-        elif sys.argv[1] == 'rm':
-            _rm(testurl, user, password, sys.argv[2:])
-        elif sys.argv[1] == 'cat':
-            _cat(testurl, user, password, sys.argv[2:])
+        if args.command == 'info':
+            _info(args.url, args.user, args.password)
+        elif args.command == 'ls':
+            _ls(args.url, args.user, args.password, args.paths)
+        elif args.command == 'pull':
+            _pull(args.url, args.user, args.password, args.paths, args.destination)
+        elif args.command == 'push':
+            _push(args.url, args.user, args.password, args.paths, args.destination)
+        elif args.command == 'mkdir':
+            _mkdir(args.url, args.user, args.password, args.paths)
+        elif args.command == 'rm':
+            _rm(args.url, args.user, args.password, args.paths)
+        elif args.command == 'cat':
+            _cat(args.url, args.user, args.password, args.paths)
         sys.exit(0)
     except OSError as err:
         sys.stderr.write(str(err) + '\n')
