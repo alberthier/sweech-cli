@@ -9,28 +9,13 @@ import ssl
 import sys
 
 if sys.version > '3':
-    from urllib.request import urlopen, Request, HTTPError
+    from urllib.request import urlopen, Request, HTTPDigestAuthHandler, HTTPPasswordMgrWithDefaultRealm, build_opener, install_opener, HTTPError
     from urllib.parse import quote
 else:
-    from urllib2 import urlopen, quote, Request, HTTPError
+    from urllib2 import urlopen, quote, Request, HTTPDigestAuthHandler, HTTPPasswordMgrWithDefaultRealm, build_opener, install_opener, HTTPError
 
 
 # == Internal helper functions ================================================
-
-
-def _urlopen(*args, **kwargs):
-    kwargs['context'] = ssl.SSLContext(ssl.PROTOCOL_TLS)
-    return urlopen(*args, **kwargs)
-
-
-def _fetch_json(url, postdata = None):
-    response = _urlopen(url, postdata)
-    content_type = response.info()['Content-Type']
-    if content_type == 'application/json':
-        content = response.read().decode('utf-8')
-        return json.loads(content)
-    else:
-        raise RuntimeError('Not a JSON object')
 
 
 def _ls_item_to_str(item):
@@ -58,124 +43,152 @@ def _pretty_size(size):
         return '{:>6.1f}G'.format(size / (1024.0 * 1024.0 * 1024.0))
 
 
-def _pull_recursive(baseurl, path, destination, log = None, base_path = None):
-    try:
-        response = _fetch_json(baseurl + '/api/ls' + quote(path))
-    except HTTPError as err:
-        raise RuntimeError("Unable to access to '{}'".format(path))
-    try:
-        if base_path is None:
-            base_path = os.path.split(path)[0]
-        localpath = path[len(base_path):]
-        if localpath[0] == '/':
-            localpath = localpath[1:]
-        if response['isDir']:
-            if not os.path.exists(localpath):
-                os.makedirs(os.path.join(destination, localpath))
-            if log is not None:
-                log(localpath + '/')
-            for item in response['content']:
-                _pull_recursive(baseurl, path + '/' + item['name'], destination, log, base_path)
+# == Sweech access ============================================================
+
+
+class Connection(object):
+
+    def __init__(self, base_url, log_function = None):
+        self.base_url = base_url
+        self._log_function = log_function
+
+
+    # == Internal functions ===================================================
+
+
+    def _log(self, msg):
+        if self._log_function:
+            self._log_function(msg)
+
+    def _urlopen(self, path, postdata = None, headers = {}):
+        return urlopen(Request(self.base_url + quote(path), data = postdata, headers = headers))
+
+
+    def _fetch_json(self, path, postdata = None, headers = {}):
+        response = self._urlopen(path, postdata, headers)
+        content_type = response.info()['Content-Type']
+        if content_type == 'application/json':
+            content = response.read().decode('utf-8')
+            return json.loads(content)
         else:
-            response = _urlopen(baseurl + '/api/fs' + quote(path))
-            if log is not None:
-                log(localpath)
-            with open(os.path.join(destination, localpath), 'wb') as f:
-                buffer_size = 64 * 1024
-                while True:
-                    buffer = response.read(buffer_size)
-                    f.write(buffer)
-                    if len(buffer) != buffer_size:
-                        break
-    except HTTPError as err:
-        raise RuntimeError("Unable to access to '{}'".format(path))
+            raise RuntimeError('Not a JSON object')
 
 
-def _push_recursive(baseurl, path, destination, log = None, base_path = None):
-    def upload_file(localpath, remotepath):
-        size = os.stat(localpath).st_size
-        if size != 0:
-            with open(localpath, 'rb') as f:
-                url = baseurl + '/api/fs' + quote(remotepath)
-                log(remotepath)
-                _urlopen(Request(url, data = f, headers = { 'Content-Length': size })).read()
-
-    try:
-        path = os.path.abspath(path)
-        if os.path.isdir(path):
+    def _pull_recursive(self, path, destination, base_path = None):
+        try:
+            response = self._fetch_json('/api/ls' + path)
+        except HTTPError as err:
+            raise RuntimeError("Unable to access to '{}'".format(path))
+        try:
             if base_path is None:
                 base_path = os.path.split(path)[0]
-            for root, dirs, files in os.walk(path):
-                remotepath = destination + root[len(base_path):]
-                if remotepath[0] == '/':
-                    remotepath = remotepath[1:]
-                if len(files) == 0 and len(dirs) == 0:
-                    log('/' + remotepath + '/')
-                    mkdir(baseurl, remotepath)
-                else:
-                    for filename in files:
-                        upload_file(os.path.join(root, filename), '/' + remotepath + '/' + filename)
-        else:
-            upload_file(path, destination + '/' + os.path.split(path)[1])
-    except HTTPError as err:
-        raise RuntimeError("Unable to upload to '{}'\n".format(destination))
+            localpath = path[len(base_path):]
+            if localpath[0] == '/':
+                localpath = localpath[1:]
+            if response['isDir']:
+                if not os.path.exists(localpath):
+                    os.makedirs(os.path.join(destination, localpath))
+                self._log(localpath + '/')
+                for item in response['content']:
+                    self._pull_recursive(path + '/' + item['name'], destination, base_path)
+            else:
+                response = self._urlopen('/api/fs' + path)
+                self._log(localpath)
+                with open(os.path.join(destination, localpath), 'wb') as f:
+                    buffer_size = 64 * 1024
+                    while True:
+                        buffer = response.read(buffer_size)
+                        f.write(buffer)
+                        if len(buffer) != buffer_size:
+                            break
+        except HTTPError as err:
+            raise RuntimeError("Unable to access to '{}'".format(path))
 
 
-# == Public API ===============================================================
+    def _push_recursive(self, path, destination, base_path = None):
+        def upload_file(localpath, remotepath):
+            size = os.stat(localpath).st_size
+            if size != 0:
+                with open(localpath, 'rb') as f:
+                    self._log(remotepath)
+                    self._urlopen('/api/fs' + remotepath, f, { 'Content-Length': size }).read()
+
+        try:
+            path = os.path.abspath(path)
+            if os.path.isdir(path):
+                if base_path is None:
+                    base_path = os.path.split(path)[0]
+                for root, dirs, files in os.walk(path):
+                    remotepath = destination + root[len(base_path):]
+                    if remotepath[0] == '/':
+                        remotepath = remotepath[1:]
+                    if len(files) == 0 and len(dirs) == 0:
+                        self._log('/' + remotepath + '/')
+                        self.mkdir(remotepath)
+                    else:
+                        for filename in files:
+                            upload_file(os.path.join(root, filename), '/' + remotepath + '/' + filename)
+            else:
+                upload_file(path, destination + '/' + os.path.split(path)[1])
+        except HTTPError as err:
+            raise RuntimeError("Unable to upload to '{}'\n".format(destination))
 
 
-def info(baseurl):
-    return _fetch_json(baseurl + '/api/info')
+    # == Public API ===========================================================
 
 
-def ls(baseurl, path):
-    try:
-        response = _fetch_json(baseurl + '/api/ls' + quote(path))
-        if 'content' in response:
-            return response['content']
-        else:
-            return [ response ]
-    except HTTPError as err:
-        raise RuntimeError("Unable to access to '{}'".format(path))
+    def info(self):
+        return self._fetch_json('/api/info')
 
 
-def mkdir(baseurl, path):
-    try:
-        postdata = codecs.encode(json.dumps({ 'dir': path }), 'utf-8')
-        _urlopen(baseurl + '/api/fileops/mkdir', postdata).read()
-    except HTTPError as err:
-        raise RuntimeError("Unable to create '{}'".format(path))
+    def ls(self, path):
+        try:
+            response = self._fetch_json('/api/ls' + path)
+            if 'content' in response:
+                return response['content']
+            else:
+                return [ response ]
+        except HTTPError as err:
+            raise RuntimeError("Unable to access to '{}'".format(path))
 
 
-def rm(baseurl, path):
-    try:
-        basedir, item = os.path.split(path)
-        postdata = codecs.encode(json.dumps({ 'baseDir': basedir, 'items': [ item ] }), 'utf-8')
-        _urlopen(baseurl + '/api/fileops/delete', postdata).read()
-    except HTTPError as err:
-        raise RuntimeError("Unable to delete '{}'".format(path))
+    def mkdir(self, path):
+        try:
+            postdata = codecs.encode(json.dumps({ 'dir': path }), 'utf-8')
+            self._urlopen('/api/fileops/mkdir', postdata).read()
+        except HTTPError as err:
+            raise RuntimeError("Unable to create '{}'".format(path))
 
 
-def cat(baseurl, path):
-    try:
-        return _urlopen(baseurl + '/api/fs' + quote(path))
-    except HTTPError as err:
-        raise RuntimeError("Unable to read '{}'".format(path))
+    def rm(self, path):
+        try:
+            basedir, item = os.path.split(path)
+            postdata = codecs.encode(json.dumps({ 'baseDir': basedir, 'items': [ item ] }), 'utf-8')
+            self._urlopen('/api/fileops/delete', postdata).read()
+        except HTTPError as err:
+            raise RuntimeError("Unable to delete '{}'".format(path))
 
 
-def pull(baseurl, path, destination, log = None):
-    _pull_recursive(baseurl, path, destination, log)
+    def cat(self, path):
+        try:
+            return self._urlopen('/api/fs' + path)
+        except HTTPError as err:
+            raise RuntimeError("Unable to read '{}'".format(path))
+
+
+    def pull(self, path, destination):
+        self._pull_recursive(path, destination)
     
 
-def push(baseurl, path, destination, log = None):
-    _push_recursive(baseurl, path, destination, log)
+    def push(self, path, destination):
+        self._push_recursive(path, destination)
 
 
 # == CLI functions ============================================================
 
 
-def _info(baseurl):
-    inf = info(baseurl)
+def _info(base_url):
+    inf = Connection(base_url).info()
     print('Device:           {} {}'.format(inf['brand'], inf['model']))
     print('API:              {}'.format(inf['sdk']))
     print('Internal storage: {}'.format(inf['storagePaths']['internal']))
@@ -189,19 +202,32 @@ def _info(baseurl):
             print('{:17} {}'.format(dkey[0].upper() + dkey[1:] + ':', dinfo['path']))
 
 
-def _ls(baseurl, paths):
+def _ls(base_url, paths):
+    conn = Connection(base_url)
     for i, path in enumerate(paths):
         if len(paths) > 1:
             if i > 0:
                 print('')
             print(path + ':')
-        for item in ls(baseurl, path):
+        for item in conn.ls(path):
             print(_ls_item_to_str(item))
 
 
-def _cat(baseurl, paths):
+def _mkdir(base_url, paths):
+    conn = Connection(base_url)
     for path in paths:
-        r = cat(baseurl, path)
+        conn.mkdir(path)
+
+
+def _rm(base_url, paths):
+    conn = Connection(base_url)
+    for path in paths:
+        conn.rm(path)
+
+
+def _cat(base_url, paths):
+    for path in paths:
+        r = Connection(base_url).cat(path)
         buffer_size = 64 * 1024
         while True:
             buffer = r.read(buffer_size)
@@ -210,21 +236,23 @@ def _cat(baseurl, paths):
                 break
 
 
-def _pull(baseurl, paths, destination):
+def _pull(base_url, paths, destination):
+    conn = Connection(base_url, print)
     for path in paths:
-        pull(baseurl, path, destination, print)
+        conn.pull(path, destination)
 
 
-def _push(baseurl, paths, destination):
+def _push(base_url, paths, destination):
+    conn = Connection(base_url, print)
     for path in paths:
-        push(baseurl, path, destination, print)
+        conn.push(path, destination)
 
 
 # == Main =====================================================================
 
 
 if __name__ == '__main__':
-    testurl = 'https://192.168.0.77:4443'
+    testurl = 'http://192.168.0.77:4444'
     status = 1
     try:
         if sys.argv[1] == 'info':
@@ -236,9 +264,9 @@ if __name__ == '__main__':
         elif sys.argv[1] == 'push':
             _push(testurl, sys.argv[2:-1], sys.argv[-1])
         elif sys.argv[1] == 'mkdir':
-            mkdir(testurl, sys.argv[2])
+            _mkdir(testurl, sys.argv[2:])
         elif sys.argv[1] == 'rm':
-            rm(testurl, sys.argv[2])
+            _rm(testurl, sys.argv[2:])
         elif sys.argv[1] == 'cat':
             _cat(testurl, sys.argv[2:])
         sys.exit(0)
