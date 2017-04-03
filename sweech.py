@@ -7,12 +7,15 @@ import json
 import os.path
 import ssl
 import sys
+import types
 
 if sys.version > '3':
-    from urllib.request import urlopen, Request, HTTPDigestAuthHandler, HTTPPasswordMgrWithDefaultRealm, build_opener, install_opener, HTTPError
     from urllib.parse import quote
+    from urllib.request import build_opener, urlopen, urlparse, Request, \
+                               AbstractDigestAuthHandler, HTTPDigestAuthHandler, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPSHandler
 else:
-    from urllib2 import urlopen, quote, Request, HTTPDigestAuthHandler, HTTPPasswordMgrWithDefaultRealm, build_opener, install_opener, HTTPError
+    from urllib2 import quote, build_opener, urlopen, urlparse, Request, \
+                               AbstractDigestAuthHandler, HTTPDigestAuthHandler, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPSHandler
 
 
 # == Internal helper functions ================================================
@@ -43,14 +46,35 @@ def _pretty_size(size):
         return '{:>6.1f}G'.format(size / (1024.0 * 1024.0 * 1024.0))
 
 
+class HTTPSDigestAuthHandler(HTTPSHandler, AbstractDigestAuthHandler):
+
+    def __init__(self, passwordmgr, context):
+        HTTPSHandler.__init__(self, context = context)
+        AbstractDigestAuthHandler.__init__(self, passwordmgr)
+
+    auth_header = 'Authorization'
+    handler_order = 490  # before Basic auth
+
+    def http_error_401(self, req, fp, code, msg, headers):
+        host = urlparse(req.full_url)[1]
+        retry = self.http_error_auth_reqed('www-authenticate', host, req, headers)
+        self.reset_retry_count()
+        return retry
+
+
 # == Sweech access ============================================================
 
 
-class Connection(object):
+class Connector(object):
 
-    def __init__(self, base_url, log_function = None):
+    def __init__(self, base_url, user = None, password = None, log_function = None):
         self.base_url = base_url
         self._log_function = log_function
+        passwordmgr = HTTPPasswordMgrWithDefaultRealm()
+        passwordmgr.add_password('Sweech', base_url, user, password)
+        auth_handler = HTTPDigestAuthHandler(passwordmgr)
+        https_auth_handler = HTTPSDigestAuthHandler(passwordmgr, ssl.SSLContext(ssl.PROTOCOL_TLS))
+        self._opener = build_opener(auth_handler, https_auth_handler)
 
 
     # == Internal functions ===================================================
@@ -61,7 +85,7 @@ class Connection(object):
             self._log_function(msg)
 
     def _urlopen(self, path, postdata = None, headers = {}):
-        return urlopen(Request(self.base_url + quote(path), data = postdata, headers = headers))
+        return self._opener.open(Request(self.base_url + quote(path), data = postdata, headers = headers))
 
 
     def _fetch_json(self, path, postdata = None, headers = {}):
@@ -187,8 +211,8 @@ class Connection(object):
 # == CLI functions ============================================================
 
 
-def _info(base_url):
-    inf = Connection(base_url).info()
+def _info(base_url, user, password):
+    inf = Connector(base_url).info()
     print('Device:           {} {}'.format(inf['brand'], inf['model']))
     print('API:              {}'.format(inf['sdk']))
     print('Internal storage: {}'.format(inf['storagePaths']['internal']))
@@ -202,8 +226,8 @@ def _info(base_url):
             print('{:17} {}'.format(dkey[0].upper() + dkey[1:] + ':', dinfo['path']))
 
 
-def _ls(base_url, paths):
-    conn = Connection(base_url)
+def _ls(base_url, user, password, paths):
+    conn = Connector(base_url, user, password)
     for i, path in enumerate(paths):
         if len(paths) > 1:
             if i > 0:
@@ -213,21 +237,22 @@ def _ls(base_url, paths):
             print(_ls_item_to_str(item))
 
 
-def _mkdir(base_url, paths):
-    conn = Connection(base_url)
+def _mkdir(base_url, user, password, paths):
+    conn = Connector(base_url, user, password)
     for path in paths:
         conn.mkdir(path)
 
 
-def _rm(base_url, paths):
-    conn = Connection(base_url)
+def _rm(base_url, user, password, paths):
+    conn = Connector(base_url, user, password)
     for path in paths:
         conn.rm(path)
 
 
-def _cat(base_url, paths):
+def _cat(base_url, user, password, paths):
+    conn = Connector(base_url, user, password)
     for path in paths:
-        r = Connection(base_url).cat(path)
+        r = conn.cat(path)
         buffer_size = 64 * 1024
         while True:
             buffer = r.read(buffer_size)
@@ -236,14 +261,14 @@ def _cat(base_url, paths):
                 break
 
 
-def _pull(base_url, paths, destination):
-    conn = Connection(base_url, print)
+def _pull(base_url, user, password, paths, destination):
+    conn = Connector(base_url, user, password, print)
     for path in paths:
         conn.pull(path, destination)
 
 
-def _push(base_url, paths, destination):
-    conn = Connection(base_url, print)
+def _push(base_url, user, password, paths, destination):
+    conn = Connector(base_url, user, password, print)
     for path in paths:
         conn.push(path, destination)
 
@@ -252,23 +277,27 @@ def _push(base_url, paths, destination):
 
 
 if __name__ == '__main__':
+
     testurl = 'http://192.168.0.77:4444'
+    user = ''
+    password = ''
+
     status = 1
     try:
         if sys.argv[1] == 'info':
-            _info(testurl)
+            _info(testurl, user, password)
         elif sys.argv[1] == 'ls':
-            _ls(testurl, sys.argv[2:])
+            _ls(testurl, user, password, sys.argv[2:])
         elif sys.argv[1] == 'pull':
-            _pull(testurl, sys.argv[2:-1], sys.argv[-1])
+            _pull(testurl, user, password, sys.argv[2:-1], sys.argv[-1])
         elif sys.argv[1] == 'push':
-            _push(testurl, sys.argv[2:-1], sys.argv[-1])
+            _push(testurl, user, password, sys.argv[2:-1], sys.argv[-1])
         elif sys.argv[1] == 'mkdir':
-            _mkdir(testurl, sys.argv[2:])
+            _mkdir(testurl, user, password, sys.argv[2:])
         elif sys.argv[1] == 'rm':
-            _rm(testurl, sys.argv[2:])
+            _rm(testurl, user, password, sys.argv[2:])
         elif sys.argv[1] == 'cat':
-            _cat(testurl, sys.argv[2:])
+            _cat(testurl, user, password, sys.argv[2:])
         sys.exit(0)
     except OSError as err:
         sys.stderr.write(str(err) + '\n')
