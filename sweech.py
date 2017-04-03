@@ -132,10 +132,9 @@ class Connector(object):
     def _push_recursive(self, path, destination, base_path = None):
         def upload_file(localpath, remotepath):
             size = os.stat(localpath).st_size
-            if size != 0:
-                with open(localpath, 'rb') as f:
-                    self._log(remotepath)
-                    self._urlopen('/api/fs' + remotepath, f, { 'Content-Length': size }).read()
+            with open(localpath, 'rb') as f:
+                self._log(remotepath)
+                self._urlopen('/api/fs' + remotepath, f, { 'Content-Length': size }).read()
 
         try:
             path = os.path.abspath(path)
