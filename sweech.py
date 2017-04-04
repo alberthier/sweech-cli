@@ -211,8 +211,8 @@ class Connector(object):
 # == CLI functions ============================================================
 
 
-def _info(base_url, user, password):
-    inf = Connector(base_url).info()
+def _info(args):
+    inf = Connector(args.url, args.user, args.password).info()
     print('Device:           {} {}'.format(inf['brand'], inf['model']))
     print('API:              {}'.format(inf['sdk']))
     print('Internal storage: {}'.format(inf['storagePaths']['internal']))
@@ -226,10 +226,10 @@ def _info(base_url, user, password):
             print('{:17} {}'.format(dkey[0].upper() + dkey[1:] + ':', dinfo['path']))
 
 
-def _ls(base_url, user, password, paths):
-    conn = Connector(base_url, user, password)
-    for i, path in enumerate(paths):
-        if len(paths) > 1:
+def _ls(args):
+    conn = Connector(args.url, args.user, args.password)
+    for i, path in enumerate(args.paths):
+        if len(args.paths) > 1:
             if i > 0:
                 print('')
             print(path + ':')
@@ -237,22 +237,22 @@ def _ls(base_url, user, password, paths):
             print(_ls_item_to_str(item))
 
 
-def _mkdir(base_url, user, password, paths):
-    conn = Connector(base_url, user, password)
-    for path in paths:
+def _mkdir(args):
+    conn = Connector(args.url, args.user, args.password)
+    for path in args.paths:
         conn.mkdir(path)
 
 
-def _rm(base_url, user, password, paths):
-    conn = Connector(base_url, user, password)
-    for path in paths:
-        conn.rm(path)
+def _rm(args):
+    conn = Connector(args.url, args.user, args.password)
+    for path in args.paths:
+        conn.rm(args, path)
 
 
-def _cat(base_url, user, password, paths):
-    conn = Connector(base_url, user, password)
-    for path in paths:
-        r = conn.cat(path)
+def _cat(args):
+    conn = Connector(args.url, args.user, args.password)
+    for path in args.paths:
+        r = conn.cat(args, path)
         buffer_size = 64 * 1024
         while True:
             buffer = r.read(buffer_size)
@@ -261,16 +261,19 @@ def _cat(base_url, user, password, paths):
                 break
 
 
-def _pull(base_url, user, password, paths, destination):
-    conn = Connector(base_url, user, password, print)
-    for path in paths:
-        conn.pull(path, destination)
+def _pull(args):
+    print(args.destination)
+    conn = Connector(args.url, args.user, args.password, print)
+    for path in args.paths:
+        conn.pull(path, args.destination)
 
 
-def _push(base_url, user, password, paths, destination):
-    conn = Connector(base_url, user, password, print)
-    for path in paths:
-        conn.push(path, destination)
+def _push(args):
+    if len(args.paths) == 0 and hasattr(args, 'defaultdir'):
+        args.paths.append(args.defaultdir)
+    conn = Connector(args.url, args.user, args.password, print)
+    for path in args.paths:
+        conn.push(path, args.destination)
 
 
 # == Main =====================================================================
@@ -308,22 +311,21 @@ if __name__ == '__main__':
 
     args = main_parser.parse_args()
 
-    status = 1
+    config = {}
+    if sys.platform == 'win32':
+        config_path = os.path.join(os.getenv('APPDATA'), 'sweech.json')
+    else:
+        config_path = os.path.join(os.getenv('HOME'), '.config', 'sweech.json')
+    if os.path.exists(config_path):
+        config = json.loads(open(config_path).read())
+    for key in config.keys():
+        if not hasattr(args, key) or getattr(args, key) is None:
+            setattr(args, key, config[key])
+
     try:
-        if args.command == 'info':
-            _info(args.url, args.user, args.password)
-        elif args.command == 'ls':
-            _ls(args.url, args.user, args.password, args.paths)
-        elif args.command == 'pull':
-            _pull(args.url, args.user, args.password, args.paths, args.destination)
-        elif args.command == 'push':
-            _push(args.url, args.user, args.password, args.paths, args.destination)
-        elif args.command == 'mkdir':
-            _mkdir(args.url, args.user, args.password, args.paths)
-        elif args.command == 'rm':
-            _rm(args.url, args.user, args.password, args.paths)
-        elif args.command == 'cat':
-            _cat(args.url, args.user, args.password, args.paths)
+        handler = getattr(sys.modules[__name__], '_' + args.command)
+        if handler:
+            handler(args)
         sys.exit(0)
     except OSError as err:
         sys.stderr.write(str(err) + '\n')
