@@ -47,6 +47,12 @@ def _pretty_size(size):
         return '{:>6.1f}G'.format(size / (1024.0 * 1024.0 * 1024.0))
 
 
+def _make_abs(args, path):
+    if not path.startswith('/') and hasattr(args, 'defaultdir'):
+        return args.defaultdir + '/' + path
+    return path
+
+
 class HTTPSDigestAuthHandler(HTTPSHandler, AbstractDigestAuthHandler):
 
     def __init__(self, passwordmgr, context):
@@ -229,6 +235,7 @@ def _info(args):
 def _ls(args):
     conn = Connector(args.url, args.user, args.password)
     for i, path in enumerate(args.paths):
+        path = _make_abs(args, path)
         if len(args.paths) > 1:
             if i > 0:
                 print('')
@@ -240,19 +247,19 @@ def _ls(args):
 def _mkdir(args):
     conn = Connector(args.url, args.user, args.password)
     for path in args.paths:
-        conn.mkdir(path)
+        conn.mkdir(_make_abs(args, path))
 
 
 def _rm(args):
     conn = Connector(args.url, args.user, args.password)
     for path in args.paths:
-        conn.rm(args, path)
+        conn.rm(_make_abs(args, path))
 
 
 def _cat(args):
     conn = Connector(args.url, args.user, args.password)
     for path in args.paths:
-        r = conn.cat(args, path)
+        r = conn.cat(_make_abs(args, path))
         buffer_size = 64 * 1024
         while True:
             buffer = r.read(buffer_size)
@@ -262,24 +269,30 @@ def _cat(args):
 
 
 def _pull(args):
-    print(args.destination)
     conn = Connector(args.url, args.user, args.password, print)
     for path in args.paths:
-        conn.pull(path, args.destination)
+        conn.pull(_make_abs(args, path), args.destination)
 
 
 def _push(args):
-    if len(args.paths) == 0 and hasattr(args, 'defaultdir'):
-        args.paths.append(args.defaultdir)
     conn = Connector(args.url, args.user, args.password, print)
     for path in args.paths:
-        conn.push(path, args.destination)
+        conn.push(path, _make_abs(args, args.destination))
 
 
 # == Main =====================================================================
 
 
 if __name__ == '__main__':
+    config = {}
+    if sys.platform == 'win32':
+        config_path = os.path.join(os.getenv('APPDATA'), 'sweech.json')
+    else:
+        config_path = os.path.join(os.getenv('HOME'), '.config', 'sweech.json')
+    if os.path.exists(config_path):
+        config = json.loads(open(config_path).read())
+    default_dir = config['defaultdir'] if 'defaultdir' in config else None
+
     main_parser = argparse.ArgumentParser(description = 'Sweech command line')
     main_parser.add_argument('-u', '--url', help = 'URL displayed in the Sweech app')
     main_parser.add_argument('--user', help = 'Username if a password has been set')
@@ -290,7 +303,7 @@ if __name__ == '__main__':
     subparsers.add_parser('info', help = 'Get info on the device')
     
     subparser = subparsers.add_parser('ls', help = 'List the content of a folder or display details of a file')
-    subparser.add_argument('paths', nargs = '+', help = 'Paths to list')
+    subparser.add_argument('paths', nargs = '*', help = 'Paths to list', default = [ default_dir ] if default_dir else [])
 
     subparser = subparsers.add_parser('pull', help = 'Pull files and folder from the remote device to a local folder')
     subparser.add_argument('paths', nargs = '+', help = 'Remote paths to pull')
@@ -311,13 +324,6 @@ if __name__ == '__main__':
 
     args = main_parser.parse_args()
 
-    config = {}
-    if sys.platform == 'win32':
-        config_path = os.path.join(os.getenv('APPDATA'), 'sweech.json')
-    else:
-        config_path = os.path.join(os.getenv('HOME'), '.config', 'sweech.json')
-    if os.path.exists(config_path):
-        config = json.loads(open(config_path).read())
     for key in config.keys():
         if not hasattr(args, key) or getattr(args, key) is None:
             setattr(args, key, config[key])
