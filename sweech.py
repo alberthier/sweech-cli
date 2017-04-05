@@ -105,7 +105,7 @@ class Connector(object):
             raise RuntimeError('Not a JSON object')
 
 
-    def _pull_recursive(self, path, destination, base_path = None):
+    def _pull_recursive(self, path, destination, keep, base_path = None):
         try:
             response = self._fetch_json('/api/ls' + path)
         except HTTPError as err:
@@ -117,26 +117,29 @@ class Connector(object):
             if localpath[0] == '/':
                 localpath = localpath[1:]
             if response['isDir']:
-                if not os.path.exists(localpath):
-                    os.makedirs(os.path.join(destination, localpath))
-                self._log(localpath + '/')
+                local_dir_path = os.path.join(destination, localpath)
+                if not os.path.exists(local_dir_path):
+                    self._log(localpath + '/')
+                    os.makedirs(local_dir_path)
                 for item in response['content']:
-                    self._pull_recursive(path + '/' + item['name'], destination, base_path)
+                    self._pull_recursive(path + '/' + item['name'], destination, keep, base_path)
             else:
-                response = self._urlopen('/api/fs' + path)
-                self._log(localpath)
-                with open(os.path.join(destination, localpath), 'wb') as f:
-                    buffer_size = 64 * 1024
-                    while True:
-                        buffer = response.read(buffer_size)
-                        f.write(buffer)
-                        if len(buffer) != buffer_size:
-                            break
+                local_file_path = os.path.join(destination, localpath)
+                if not keep or not os.path.exists(local_file_path):
+                    response = self._urlopen('/api/fs' + path)
+                    self._log(localpath)
+                    with open(local_file_path, 'wb') as f:
+                        buffer_size = 64 * 1024
+                        while True:
+                            buffer = response.read(buffer_size)
+                            f.write(buffer)
+                            if len(buffer) != buffer_size:
+                                break
         except HTTPError as err:
             raise RuntimeError("Unable to access to '{}'".format(path))
 
 
-    def _push_recursive(self, path, destination, base_path = None):
+    def _push_recursive(self, path, destination, keep, base_path = None):
         def upload_file(localpath, remotepath):
             size = os.stat(localpath).st_size
             with open(localpath, 'rb') as f:
@@ -150,16 +153,33 @@ class Connector(object):
                     base_path = os.path.split(path)[0]
                 for root, dirs, files in os.walk(path):
                     remotepath = destination + root[len(base_path):]
+                    content = []
+                    remote_dir_exists = False
+                    if keep:
+                        try:
+                            content = list(map(lambda item: item['name'], self.ls(remotepath)))
+                            remote_dir_exists = True
+                        except:
+                            pass
                     if remotepath[0] == '/':
                         remotepath = remotepath[1:]
-                    if len(files) == 0 and len(dirs) == 0:
+                    if len(files) == 0 and len(dirs) == 0 and not remote_dir_exists:
                         self._log('/' + remotepath + '/')
                         self.mkdir(remotepath)
                     else:
                         for filename in files:
-                            upload_file(os.path.join(root, filename), '/' + remotepath + '/' + filename)
+                            if not filename in content:
+                                upload_file(os.path.join(root, filename), '/' + remotepath + '/' + filename)
             else:
-                upload_file(path, destination + '/' + os.path.split(path)[1])
+                remote_file_exists = False
+                dest_path = destination + '/' + os.path.split(path)[1]
+                if keep:
+                    try:
+                        self.ls(dest_path)
+                    except:
+                        remote_file_exists = True
+                if not keep or remote_file_exists:
+                    upload_file(path, dest_path)
         except HTTPError as err:
             raise RuntimeError("Unable to upload to '{}'\n".format(destination))
 
@@ -206,12 +226,12 @@ class Connector(object):
             raise RuntimeError("Unable to read '{}'".format(path))
 
 
-    def pull(self, path, destination):
-        self._pull_recursive(path, destination)
-    
+    def pull(self, path, destination, keep):
+        self._pull_recursive(path, destination, keep)
 
-    def push(self, path, destination):
-        self._push_recursive(path, destination)
+
+    def push(self, path, destination, keep):
+        self._push_recursive(path, destination, keep)
 
 
 # == CLI functions ============================================================
@@ -278,7 +298,7 @@ def _pull(args):
     args.destination = args.paths.pop() if len(args.paths) > 1 else '.'
     conn = Connector(args.url, args.user, args.password, print)
     for path in args.paths:
-        conn.pull(_make_abs(args, path), args.destination)
+        conn.pull(_make_abs(args, path), args.destination, args.keep)
 
 
 def _push(args):
@@ -292,7 +312,7 @@ def _push(args):
             raise RuntimeError('Destination path missing')
     conn = Connector(args.url, args.user, args.password, print)
     for path in args.paths:
-        conn.push(path, _make_abs(args, args.destination))
+        conn.push(path, _make_abs(args, args.destination), args.keep)
 
 
 # == Main =====================================================================
@@ -305,17 +325,19 @@ if __name__ == '__main__':
     main_parser.add_argument('--password', help = 'Password if a password has been set')
 
     subparsers = main_parser.add_subparsers(dest = 'command', title='Available commands', metavar = 'command')
-    
+
     subparsers.add_parser('info', help = 'Get info on the device')
-    
+
     subparser = subparsers.add_parser('ls', help = 'List the content of a folder or display details of a file')
     subparser.add_argument('paths', nargs = '*', help = 'Paths to list')
 
     subparser = subparsers.add_parser('pull', help = 'Pull files and folder from the remote device to a local folder')
+    subparser.add_argument('--keep', help = 'Preserve existing files', action = 'store_true')
     subparser.add_argument('paths', nargs = '+', help = 'Remote paths to pull')
     subparser.add_argument('destination', nargs = '?', help = 'Local destination path')
 
     subparser = subparsers.add_parser('push', help = 'Push local files and folders to a remote folder')
+    subparser.add_argument('--keep', help = 'Preserve existing files', action = 'store_true')
     subparser.add_argument('paths', nargs = '+', help = 'Local paths to push')
     subparser.add_argument('destination', nargs = '?', help = 'Remote destination path')
 
