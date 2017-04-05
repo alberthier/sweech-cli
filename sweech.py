@@ -233,6 +233,11 @@ def _info(args):
 
 
 def _ls(args):
+    if len(args.paths) == 0:
+        if hasattr(args, 'defaultdir'):
+            args.paths.append(args.defaultdir)
+        else:
+            raise RuntimeError('Path missing')
     conn = Connector(args.url, args.user, args.password)
     for i, path in enumerate(args.paths):
         path = _make_abs(args, path)
@@ -269,12 +274,22 @@ def _cat(args):
 
 
 def _pull(args):
+    # Fix destination as argparse cannot handle both '*' and '?' arguments
+    args.destination = args.paths.pop() if len(args.paths) > 1 else '.'
     conn = Connector(args.url, args.user, args.password, print)
     for path in args.paths:
         conn.pull(_make_abs(args, path), args.destination)
 
 
 def _push(args):
+    # Fix destination as argparse cannot handle both '*' and '?' arguments
+    if len(args.paths) > 1:
+        args.destination = args.paths.pop()
+    else:
+        if hasattr(args, 'defaultdir'):
+            args.destination = args.defaultdir
+        else:
+            raise RuntimeError('Destination path missing')
     conn = Connector(args.url, args.user, args.password, print)
     for path in args.paths:
         conn.push(path, _make_abs(args, args.destination))
@@ -284,15 +299,6 @@ def _push(args):
 
 
 if __name__ == '__main__':
-    config = {}
-    if sys.platform == 'win32':
-        config_path = os.path.join(os.getenv('APPDATA'), 'sweech.json')
-    else:
-        config_path = os.path.join(os.getenv('HOME'), '.config', 'sweech.json')
-    if os.path.exists(config_path):
-        config = json.loads(open(config_path).read())
-    default_dir = config['defaultdir'] if 'defaultdir' in config else None
-
     main_parser = argparse.ArgumentParser(description = 'Sweech command line')
     main_parser.add_argument('-u', '--url', help = 'URL displayed in the Sweech app')
     main_parser.add_argument('--user', help = 'Username if a password has been set')
@@ -303,15 +309,15 @@ if __name__ == '__main__':
     subparsers.add_parser('info', help = 'Get info on the device')
     
     subparser = subparsers.add_parser('ls', help = 'List the content of a folder or display details of a file')
-    subparser.add_argument('paths', nargs = '*', help = 'Paths to list', default = [ default_dir ] if default_dir else [])
+    subparser.add_argument('paths', nargs = '*', help = 'Paths to list')
 
     subparser = subparsers.add_parser('pull', help = 'Pull files and folder from the remote device to a local folder')
     subparser.add_argument('paths', nargs = '+', help = 'Remote paths to pull')
-    subparser.add_argument('destination', help = 'Local destination path')
+    subparser.add_argument('destination', nargs = '?', help = 'Local destination path')
 
     subparser = subparsers.add_parser('push', help = 'Push local files and folders to a remote folder')
     subparser.add_argument('paths', nargs = '+', help = 'Local paths to push')
-    subparser.add_argument('destination', help = 'Remote destination path')
+    subparser.add_argument('destination', nargs = '?', help = 'Remote destination path')
 
     subparser = subparsers.add_parser('mkdir', help = 'Create remote folders')
     subparser.add_argument('paths', nargs = '+', help = 'Folders to create')
@@ -324,6 +330,14 @@ if __name__ == '__main__':
 
     args = main_parser.parse_args()
 
+    config = {}
+    if sys.platform == 'win32':
+        config_path = os.path.join(os.getenv('APPDATA'), 'sweech.json')
+    else:
+        config_path = os.path.join(os.getenv('HOME'), '.config', 'sweech.json')
+    if os.path.exists(config_path):
+        config = json.loads(open(config_path).read())
+    default_dir = config['defaultdir'] if 'defaultdir' in config else None
     for key in config.keys():
         if not hasattr(args, key) or getattr(args, key) is None:
             setattr(args, key, config[key])
