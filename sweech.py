@@ -80,7 +80,7 @@ class Connector(object):
         passwordmgr = HTTPPasswordMgrWithDefaultRealm()
         passwordmgr.add_password('Sweech', base_url, user, password)
         auth_handler = HTTPDigestAuthHandler(passwordmgr)
-        https_auth_handler = HTTPSDigestAuthHandler(passwordmgr, ssl.SSLContext(ssl.PROTOCOL_TLS))
+        https_auth_handler = HTTPSDigestAuthHandler(passwordmgr, ssl.SSLContext(ssl.PROTOCOL_SSLv23))
         self._opener = build_opener(auth_handler, https_auth_handler)
 
 
