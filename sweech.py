@@ -12,11 +12,13 @@ import types
 
 if sys.version > '3':
     from urllib.parse import quote
-    from urllib.request import build_opener, urlopen, urlparse, Request, \
-                               AbstractDigestAuthHandler, HTTPDigestAuthHandler, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPSHandler
+    from urllib.request import build_opener, urlopen, urlparse, AbstractDigestAuthHandler, \
+                               HTTPDigestAuthHandler, HTTPError, HTTPPasswordMgrWithDefaultRealm, \
+                               HTTPSHandler, Request, URLError
 else:
-    from urllib2 import quote, build_opener, urlopen, urlparse, Request, \
-                               AbstractDigestAuthHandler, HTTPDigestAuthHandler, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPSHandler
+    from urllib2 import quote, build_opener, urlopen, urlparse, AbstractDigestAuthHandler, \
+                               HTTPDigestAuthHandler, HTTPError, HTTPPasswordMgrWithDefaultRealm, \
+                               HTTPSHandler, Request, URLError
 
 
 # == Internal helper functions ================================================
@@ -369,9 +371,12 @@ if __name__ == '__main__':
         if handler:
             handler(args)
         sys.exit(0)
+    except URLError as err:
+        sys.stderr.write(str(err.reason) + '\n')
+        sys.exit(2)
     except OSError as err:
         sys.stderr.write(str(err) + '\n')
-        sys.exit(2)        
+        sys.exit(2)
     except RuntimeError as err:
         sys.stderr.write(str(err.args[0]) + '\n')
         sys.exit(2)
