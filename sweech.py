@@ -221,6 +221,14 @@ class Connector(object):
             raise RuntimeError("Unable to delete '{}'".format(path))
 
 
+    def mv(self, src_path, dst_path):
+        try:
+            postdata = codecs.encode(json.dumps({ 'src': src_path, 'dst': dst_path }), 'utf-8')
+            self._urlopen('/api/fileops/move', postdata).read()
+        except HTTPError as err:
+            raise RuntimeError("Unable to move '{}' to '{}'".format(src_path, dst_path))
+
+
     def cat(self, path):
         try:
             return self._urlopen('/api/fs' + path)
@@ -281,6 +289,18 @@ def _rm(args):
     conn = Connector(args.url, args.user, args.password)
     for path in args.paths:
         conn.rm(_make_abs(args, path))
+
+
+def _mv(args):
+    # Fix destination as argparse cannot handle both '*' and '?' arguments
+    if len(args.paths) > 1:
+        args.destination = args.paths.pop()
+    else:
+        raise RuntimeError('Destination path missing')
+    conn = Connector(args.url, args.user, args.password)
+    dst = _make_abs(args, args.destination)
+    for path in args.paths:
+        conn.mv(_make_abs(args, path), dst)
 
 
 def _cat(args):
@@ -348,6 +368,10 @@ if __name__ == '__main__':
 
     subparser = subparsers.add_parser('rm', help = 'Delete remote files and folders')
     subparser.add_argument('paths', nargs = '+', help = 'Files and folders to delete')
+
+    subparser = subparsers.add_parser('mv', help = 'Move remote files and folders')
+    subparser.add_argument('paths', nargs = '+', help = 'Paths to move')
+    subparser.add_argument('destination', nargs = '?', help = 'Destination path')
 
     subparser = subparsers.add_parser('cat', help = 'Displays the content of files')
     subparser.add_argument('paths', nargs = '+', help = 'Files to display')
