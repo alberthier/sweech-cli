@@ -383,22 +383,32 @@ if __name__ == '__main__':
 
     subparsers = main_parser.add_subparsers(dest = 'command', title='Available commands', metavar = 'command')
 
-    subparsers.add_parser('info', help = 'Get info on the device')
+    subparsers.add_parser('info', help = 'Prints information and default paths of your device')
 
     subparser = subparsers.add_parser('ls', help = 'List the content of a folder or display details of a file')
     subparser.add_argument('paths', nargs = '*', help = 'Paths to list')
 
-    subparser = subparsers.add_parser('pull', help = 'Pull files and folder from the remote device to a local folder')
+    subparser = subparsers.add_parser('pull', help = 'Pull files and folders from the remote device to a local folder',
+                                              description="""Pull files and folders from the remote device to a local folder.
+                                                             If remote file path is relative, the `defaultdir` entry in
+                                                             `settings.json` is used as base""")
     subparser.add_argument('--keep', help = 'Preserve existing files', action = 'store_true')
     subparser.add_argument('paths', nargs = '+', help = 'Remote paths to pull')
     subparser.add_argument('destination', nargs = '?', help = 'Local destination path')
 
-    subparser = subparsers.add_parser('push', help = 'Push local files and folders to a remote folder')
+    subparser = subparsers.add_parser('push', help = "Pushes files or directories to a remote path.",
+                                              description="""Pushes files or directories to a remote path.
+                                                             If no remote file is specified or a relative path is used,
+                                                             the `defaultdir` entry in `settings.json` is used as base.
+                                                             You can only create files and folders in the internal storage.
+                                                             External storage (SD card) is writable too if you have granted
+                                                             Sweech this authorisation in the app's settings.""")    
     subparser.add_argument('--keep', help = 'Preserve existing files', action = 'store_true')
     subparser.add_argument('paths', nargs = '+', help = 'Local paths to push')
     subparser.add_argument('destination', nargs = '?', help = 'Remote destination path')
 
-    subparser = subparsers.add_parser('mkdir', help = 'Create remote folders')
+    subparser = subparsers.add_parser('mkdir', help = 'Create remote folders',
+                                               description="Create remote folders. Missing intermediate directories are created too")
     subparser.add_argument('paths', nargs = '+', help = 'Folders to create')
 
     subparser = subparsers.add_parser('rm', help = 'Delete remote files and folders')
