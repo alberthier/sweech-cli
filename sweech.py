@@ -75,8 +75,16 @@ class HTTPSDigestAuthHandler(HTTPSHandler, AbstractDigestAuthHandler):
 
 
 class Connector(object):
+    """A Connector is used to access to an Android device running Sweech"""
 
     def __init__(self, base_url, user = None, password = None, log_function = None):
+        """
+        Args:
+            base_url (str): the URL displayed in the Sweech app (ex: 'http://192.168.0.65:4444')
+            user (str, optional): the username if login is enabled in the app
+            password (str, optional): the password if login is enabled in the app
+            log_function (function): a function to be called to log runtime information
+        """
         self.base_url = base_url
         self._log_function = log_function
         passwordmgr = HTTPPasswordMgrWithDefaultRealm()
@@ -190,10 +198,12 @@ class Connector(object):
 
 
     def info(self):
+        """Returns a dict with information on the device (name, paths, ...)"""
         return self._fetch_json('/api/info')
 
 
     def ls(self, path):
+        """Returns a list of dics with information on a filesystem entry"""
         try:
             response = self._fetch_json('/api/ls' + path)
             if 'content' in response:
@@ -205,6 +215,9 @@ class Connector(object):
 
 
     def mkdir(self, path):
+        """Creates a new directory.
+        Missing intermediate paths are created.
+        """
         try:
             postdata = codecs.encode(json.dumps({ 'dir': path }), 'utf-8')
             self._urlopen('/api/fileops/mkdir', postdata).read()
@@ -213,6 +226,9 @@ class Connector(object):
 
 
     def rm(self, path):
+        """Deletes a file or diectory
+        If path is a direcrory, its content is recursively deleted
+        """
         try:
             basedir, item = os.path.split(path)
             postdata = codecs.encode(json.dumps({ 'baseDir': basedir, 'items': [ item ] }), 'utf-8')
@@ -222,6 +238,10 @@ class Connector(object):
 
 
     def mv(self, src_path, dst_path):
+        """Move a file or directory
+        Moving files between directories may be slow if src_path and dst_path aren't on the same volume.
+        In this case, a copy + delete is done.
+        """
         try:
             postdata = codecs.encode(json.dumps({ 'src': src_path, 'dst': dst_path }), 'utf-8')
             self._urlopen('/api/fileops/move', postdata).read()
@@ -230,6 +250,7 @@ class Connector(object):
 
 
     def cat(self, path):
+        """Returns a file-like object with the content of the file at path"""
         try:
             return self._urlopen('/api/fs' + path)
         except HTTPError as err:
@@ -237,10 +258,24 @@ class Connector(object):
 
 
     def pull(self, path, destination, keep):
+        """Copies a file or directory from the device to the local path
+
+        Args:
+            path (str): Absolute remote path of a file or directory to download
+            destination (str): Local destination path
+            keep (bool): if true, existing local files are preserved
+        """
         self._pull_recursive(path, destination, keep)
 
 
     def push(self, path, destination, keep):
+        """Copies a file or directory to the device
+
+        Args:
+            path (str): Local path of a file or directory to upload
+            destination (str): Absolute remote destination path
+            keep (bool): if true, existing remote files are preserved
+        """
         self._push_recursive(path, destination, keep)
 
 
