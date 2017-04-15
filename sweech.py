@@ -257,7 +257,7 @@ class Connector(object):
             raise RuntimeError("Unable to read '{}'".format(path))
 
 
-    def pull(self, path, destination, keep):
+    def pull(self, path, destination, keep = True):
         """Copies a file or directory from the device to the local path
 
         Args:
@@ -268,7 +268,7 @@ class Connector(object):
         self._pull_recursive(path, destination, keep)
 
 
-    def push(self, path, destination, keep):
+    def push(self, path, destination, keep = True):
         """Copies a file or directory to the device
 
         Args:
