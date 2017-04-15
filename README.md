@@ -99,15 +99,30 @@ Simply import the `sweech` module and use the `Connector` object. All CLI comman
 ```
 import sweech
 
-c = sweech.Connector('http://192.168.0.65:4444')
+c = sweech.Connector('http://192.168.0.11:4444')
 
-c.pull('/storage/emulated/0/Downloads/kittenz.jpg', '/tmp')
+print(c.info())
 
-c.push('text.txt', '/storage/emulated/0/Downloads')
+for f in c.ls('/storage/emulated/0/Download'):
+    print(f)
 
-f = c.cat('/storage/emulated/0/Downloads/test.txt')
+with open('test.txt', 'wt') as f:
+    f.write('Hello World')
+
+c.push('test.txt', '/storage/emulated/0/Download')
+
+c.pull('/storage/emulated/0/Download/test.txt', '/tmp')
+
+f = c.cat('/storage/emulated/0/Download/test.txt')
 print(f.read().decode('utf-8'))
 f.close()
+
+c.mkdir('/storage/emulated/0/Download/testdir')
+
+c.mv('/storage/emulated/0/Download/testdir', '/storage/emulated/0/Download/testdir2')
+
+c.rm('/storage/emulated/0/Download/testdir2')
+
 ```
 
 ## Dependencies
