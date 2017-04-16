@@ -423,6 +423,10 @@ if __name__ == '__main__':
 
     args = main_parser.parse_args()
 
+    if args.command is None:
+        main_parser.print_help()
+        sys.exit(1)
+
     config = {}
     if sys.platform == 'win32':
         config_path = os.path.join(os.getenv('APPDATA'), 'sweech.json')
