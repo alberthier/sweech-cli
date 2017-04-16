@@ -54,7 +54,7 @@ $ sweech info
 Prints information and default paths of your device
 
 ```
-$ sweech ls /storage/emulate/0/Downloads
+$ sweech ls /storage/emulated/0/Download
 ```
 List the content of a folder or display details of a file
 
