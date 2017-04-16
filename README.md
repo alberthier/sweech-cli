@@ -10,17 +10,17 @@ Sweech is an Android app with which you can browse the content of your phone and
 
 ## Nice, how do I get it ?
 
-Download the python script and add it to your `$PATH`
+Use python's `pip`
+
+`$ pip install sweech-cli`
+
+Or download the python script and add it to your `$PATH`
 
 `$ curl -o sweech https://raw.githubusercontent.com/alberthier/sweech-cli/master/sweech.py`
 
 or
 
 `$ wget -O sweech https://raw.githubusercontent.com/alberthier/sweech-cli/master/sweech.py`
-
-or use python's `pip`
-
-`$ pip install sweech-cli`
 
 ## How do I use it ?
 
@@ -34,7 +34,7 @@ $ sweech -u http://192.168.0.65 info
 
 Here is an example file for a phone having `192.168.0.65` as IP address
 
-```
+```json
 {
     "url": "http://192.168.0.65:4444",
     "user": "",
@@ -96,7 +96,7 @@ Displays the content of a file
 
 Simply import the `sweech` module and use the `Connector` object. All CLI commands have their equivalent method:
 
-```
+```python
 import sweech
 
 c = sweech.Connector('http://192.168.0.11:4444')
