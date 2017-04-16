@@ -8,6 +8,8 @@ Sweech is an Android app with which you can browse the content of your phone and
 
 ## OK, show me !
 
+[![asciicast](https://asciinema.org/a/113791.png)](https://asciinema.org/a/113791?speed=2)
+
 ## Nice, how do I get it ?
 
 Use python's `pip`
