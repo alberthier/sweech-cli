@@ -8,7 +8,7 @@ setup(
     name = "sweech-cli",
     version = "1.0.0",
     description = "A command-line utility to interact with your Android device through the Sweech app",
-    long_description = read('README.md'),
+    long_description = read('README.rst'),
     url = 'https://github.com/alberthier/sweech-cli',
     license = 'MIT',
     author = 'Eric ALBER',
