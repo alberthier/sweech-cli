@@ -375,7 +375,7 @@ def _push(args):
 # == Main =====================================================================
 
 
-if __name__ == '__main__':
+def _main():
     main_parser = argparse.ArgumentParser(description = 'Sweech command line')
     main_parser.add_argument('-u', '--url', help = 'URL displayed in the Sweech app')
     main_parser.add_argument('--user', help = 'Username if a password has been set')
@@ -455,3 +455,7 @@ if __name__ == '__main__':
         sys.exit(2)
     except KeyboardInterrupt:
         sys.exit(3)
+
+
+if __name__ == '__main__':
+    _main()
