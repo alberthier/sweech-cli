@@ -434,7 +434,6 @@ def _main():
         config_path = os.path.join(os.getenv('HOME'), '.config', 'sweech.json')
     if os.path.exists(config_path):
         config = json.loads(open(config_path).read())
-    default_dir = config['defaultdir'] if 'defaultdir' in config else None
     for key in config.keys():
         if not hasattr(args, key) or getattr(args, key) is None:
             setattr(args, key, config[key])
