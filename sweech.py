@@ -283,13 +283,27 @@ class Connector(object):
 
 
 def _info(args):
+
+    def print_storage_info(storage):
+        print('  Path:           {}'.format(storage['path']))
+        name = storage['name']
+        if name is not None:
+            print('  Name:           {}'.format(name))
+        print('  Available:    {}'.format(_pretty_size(storage['availableBytes'])))
+        print('  Total:        {}'.format(_pretty_size(storage['totalBytes'])))
+
     inf = Connector(args.url, args.user, args.password).info()
     print('Device:           {} {}'.format(inf['brand'], inf['model']))
     print('API:              {}'.format(inf['sdk']))
-    print('Internal storage: {}'.format(inf['storagePaths']['internal']))
+    print('Internal storage:')
+    print_storage_info(inf['storagePaths']['internal'])
     external_storages = inf['storagePaths']['externals']
-    for ext in external_storages:
-        print('External storage: {}'.format(ext))
+    if len(external_storages) > 0:
+        print('External storage:')
+        for i, ext in enumerate(external_storages):
+            if i > 0:
+                print()
+            print_storage_info(ext)
     directories = inf['directories']
     for dkey in sorted(directories.keys()):
         dinfo = directories[dkey]
