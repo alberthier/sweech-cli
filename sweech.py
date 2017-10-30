@@ -279,6 +279,21 @@ class Connector(object):
         self._push_recursive(path, destination, keep)
 
 
+    def clipboard(self, text = None):
+        """ Gets or sets the clipboard content
+
+        Args:
+            text (str): The text to put in the Android clipboard
+            or None to get the clipboard content
+        """
+        if text == None:
+            response = self._fetch_json('/api/clipboard')
+            return response['content']
+        else:
+            postdata = codecs.encode(json.dumps({ 'content': text }), 'utf-8')
+            self._urlopen('/api/clipboard', postdata).read()
+
+
 # == CLI functions ============================================================
 
 
@@ -386,6 +401,12 @@ def _push(args):
         conn.push(path, _make_abs(args, args.destination), args.keep)
 
 
+def _clipboard(args):
+    result = Connector(args.url, args.user, args.password).clipboard(args.text)
+    if result is not None:
+        print(result)
+
+
 # == Main =====================================================================
 
 
@@ -434,6 +455,9 @@ def _main():
 
     subparser = subparsers.add_parser('cat', help = 'Displays the content of files')
     subparser.add_argument('paths', nargs = '+', help = 'Files to display')
+
+    subparser = subparsers.add_parser('clipboard', help = 'Get or set the clipboard content')
+    subparser.add_argument('text', nargs = '?', help = 'The text to put in the clipboard or omit to get the clipboard content')
 
     args = main_parser.parse_args()
 
