@@ -116,6 +116,18 @@ Moves a file or a directory (with its content). Moving files between directories
 
 Displays the content of a file
 
+.. code::
+
+    $ sweech clipboard
+
+Displays the content of the Android clipboard
+
+.. code::
+
+    $ sweech clipboard "Hello World"
+
+Sets the content of the Android clipboard
+
 And what if I want to use it in my Python script ?
 --------------------------------------------------
 
@@ -148,6 +160,9 @@ Simply import the ``sweech`` module and use the ``Connector`` object. All CLI co
     c.mv('/storage/emulated/0/Download/testdir', '/storage/emulated/0/Download/testdir2')
 
     c.rm('/storage/emulated/0/Download/testdir2')
+
+    txt = c.clipboard()
+    c.clipboard(txt + " hello world")
 
 Dependencies
 ------------
