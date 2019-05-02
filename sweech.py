@@ -102,7 +102,7 @@ class Connector(object):
             self._log_function(msg)
 
     def _urlopen(self, path, postdata = None, headers = {}):
-        return self._opener.open(Request(self.base_url + quote(path), data = postdata, headers = headers))
+        return self._opener.open(Request(self.base_url + quote(path.encode('utf-8')), data = postdata, headers = headers))
 
 
     def _fetch_json(self, path, postdata = None, headers = {}):
