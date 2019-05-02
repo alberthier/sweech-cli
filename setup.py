@@ -6,7 +6,7 @@ def read(fname):
 
 setup(
     name = "sweech-cli",
-    version = "1.1.0",
+    version = "1.1.1",
     description = "A command-line utility to interact with your Android device through the Sweech app",
     long_description = read('README.rst'),
     url = 'https://github.com/alberthier/sweech-cli',
